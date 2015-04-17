@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=0, minimum-scale=1.0, maximum-scale=1.0">
+    <title>知音</title>
+    <style type="text/css">
+        body{margin:0;font-family:"microsoft yahei";font-size:13px;line-height:1.5;background:#eee;}
+        .wrap{margin:100px auto 0 auto;}
+        .tabs{height:40px;}
+        .tabs a{display:block;float:left;width:33.33%;color:#333;text-align:center;background:#eee;line-height:40px;font-size:16px;text-decoration:none;}
+        .tabs a.active{color:#fff;background:#333;border-radius:5px 5px 0px 0px;}
+        .swiper-container{background:#333;height:325px;border-radius:0 0 5px 5px;width:100%;border-top:0;}
+        .swiper-slide{height:325px;width:100%;background:none;color:#fff;}
+        .content-slide{padding:40px;}
+        .content-slide p{text-indent:2em;line-height:1.9;}
+        #k_btn{width:256px;height:256px;background: url('/static/img/up.png') no-repeat;display:block;-webkit-user-select: none;-moz-user-select: none;}
+        a {
+            text-decoration: none;
+            hide-focus: expression_r( this.hideFocus=true );
+            outline: none;
+            star:expression_r(this.onFocus=this.blur());
+        }
+    </style>
+    <link rel="stylesheet" href="/static/css/idangerous.swiper.css">
+</head>
+<body>
+    <!-- <div>
+        <audio controls autoplay id="aud"></audio>
+        <input onclick="startRecording()" type="button" value="录音" />
+        <input onclick="stopRecording()" type="button" value="停止" />
+        <input onclick="playRecording()" type="button" value="播放" />
+        <input onclick="uploadAudio()" type="button" value="提交" />
+        <br>
+        <div id="iat_result"></div>
+    </div> -->
+    <div class="wrap">
+        <div class="tabs">
+            <a href="#" hidefocus="true" class="active">语音搜索</a>
+            <a href="#" hidefocus="true">搜索记录</a>
+        </div>    
+        <div class="swiper-container">
+            <div class="swiper-wrapper">
+                <div class="swiper-slide">
+                    <div class="content-slide">
+                        <a href="javascript:void(0)" onmousedown="k_down()" onmouseup="k_up()" id="k_btn"></a>
+                    </div>
+                </div>
+                <div class="swiper-slide">
+                    <div class="content-slide">
+                        <h2>音乐片段搜索</h2>
+                        <div id="iat_result"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <audio controls autoplay style="display:none"></audio>
+<script src="/static/js/jquery-1.10.1.min.js"></script> 
+<script src="/static/js/idangerous.swiper.min.js"></script>
+<script src="http://webapi.openspeech.cn/socket.io/socket.io.js"></script>
+<script src="http://webapi.openspeech.cn/js/connection/connection.js"></script>
+<script src="http://webapi.openspeech.cn/js/audio/recorder.js"></script>
+<script src="http://webapi.openspeech.cn/js/common/resampler.js"></script>
+<script src="http://webapi.openspeech.cn/js/common/fingerprint.js"></script>
+<script src="http://webapi.openspeech.cn/js/util/brow.js"></script>
+<script src="http://webapi.openspeech.cn/js/log/log.js"></script>   
+<script src="http://webapi.openspeech.cn/js/session/iat.js"></script>
+<script src="http://webapi.openspeech.cn/js/session/session.js"></script>
+<script src="http://webapi.openspeech.cn/js/session/sessioninfo.js"></script>
+<script src="http://blog.faultylabs.com/files/md5.js"></script>
+<script src="/static/js/HZRecorder.js"></script>
+<script>
+var tabsSwiper = new Swiper('.swiper-container',{
+    speed:500,
+    onSlideChangeStart: function(){
+        $(".tabs .active").removeClass('active');
+        $(".tabs a").eq(tabsSwiper.activeIndex).addClass('active');
+    }
+});
+
+$(".tabs a").on('touchstart mousedown',function(e){
+    e.preventDefault()
+    $(".tabs .active").removeClass('active');
+    $(this).addClass('active');
+    tabsSwiper.swipeTo($(this).index());
+});
+
+$(".tabs a").click(function(e){
+    e.preventDefault();
+});
+
+//按下的时候的事件
+function k_down(){
+    $("#k_btn").css('background',"url('/static/img/down.png') no-repeat");
+    startRecording();
+}
+//松开的时候的事件
+function k_up(){
+    $("#k_btn").css('background',"url('/static/img/up.png') no-repeat");
+    stopRecording();
+}
+var obj = document.getElementById('k_btn');
+obj.addEventListener('touchstart', function(event) {
+     event.preventDefault();
+     $("#k_btn").css('background',"url('/static/img/down.png') no-repeat");
+     startRecording();
+}, false);
+obj.addEventListener('touchend', function(event) {
+     event.preventDefault();
+     $("#k_btn").css('background',"url('/static/img/up.png') no-repeat");
+     stopRecording();
+}, false);
+
+
+
+var audio = document.querySelector('audio');
+
+function startRecording(){
+    play(true);
+}
+
+function stopRecording() {
+    play(false);
+}
+
+function playRecording() {
+    audio.src = window.URL.createObjectURL(audioRecorder.audioData.encodeWAV());
+}
+
+function uploadAudio() {
+    post_data("/sm", {'op': 'a', 'audio': audioRecorder.audioData.encodeWAV()}, function (state, e) {
+        var temp;
+        switch (state) {
+            case 'uploading':
+                //var percentComplete = Math.round(e.loaded * 100 / e.total) + '%';
+                break;
+            case 'ok':
+                console.log(e.target.responseText);
+                eval("temp="+e.target.responseText);
+                alert(temp.data.song_name+'  '+temp.data.confidence);
+                break;
+            case 'error':
+                alert("上传失败");
+                break;
+            case 'cancel':
+                alert("上传被取消");
+                break;
+        }
+    });
+}
+
+
+function post_data(url, data, callback) {
+    var fd = new FormData(), _k;
+    for(_k in data){
+        fd.append(_k, data[_k]);
+    }
+    var xhr = new XMLHttpRequest();
+    if (callback) {
+        xhr.upload.addEventListener("progress", function (e) {
+            callback('uploading', e);
+        }, false);
+        xhr.addEventListener("load", function (e) {
+            callback('ok', e);
+        }, false);
+        xhr.addEventListener("error", function (e) {
+            callback('error', e);
+        }, false);
+        xhr.addEventListener("abort", function (e) {
+            callback('cancel', e);
+        }, false);
+    }
+    xhr.open("POST", url);
+    xhr.send(fd);
+}
+
+var iat_result = document.getElementById('iat_result');
+
+/**
+  * 初始化Session会话
+  * url                 连接的服务器地址（可选）
+  * reconnection        客户端是否支持断开重连
+  * reconnectionDelay   重连支持的延迟时间   
+  */
+var session = new Session({
+                                 'url'                : 'http://webapi.openspeech.cn/',
+                                 'interval' : '60000',
+                                 'disconnect_hint' : 'disconnect',
+                                  'sub' : 'tts',
+                                  'compress' : 'speex',
+                                  'speex_path' : '/static/js/speex.js',              //speex.js本地路径 
+                                  'vad_path' : '/static/js/vad.js',                  //vad.js本地路径
+                                  'recorder_path' : '/static/js/recorderWorker.js',    //recordWorker.js本地路径
+                                 'reconnection'       : true,
+                                 'reconnectionDelay'  : 30000,
+                                 'writeAudio'         : true
+                         });
+
+/* 音量动画渲染对象 */
+var w = document.getElementById('aud');
+
+var byteArray = null;
+/***********************************************local Variables**********************************************************/
+var appid = "552c9a0d";
+var timestamp = new Date().toLocaleTimeString();
+var expires = 60000;
+var secret_key = "0fd5ba27e393ac8f";
+var signature = faultylabs.MD5(appid + '&' + timestamp + '&' + expires + '&' + secret_key);
+var ssb_param = {"grammar_list" : null, "params" : "aue=speex-wb;-1, usr = mkchen, ssm = 1, sub = iat, net_type = wifi, rse = utf8, ent =sms16k, rst = plain, auf  = audio/L16;rate=16000, vad_enable = 1, vad_timeout = 5000, vad_speech_tail = 500, compress = igzip, caller.appid = " + appid + ", timestamp = " + timestamp + ", expires = " + expires, "signature" : signature};
+/**
+  * 点击麦克风响应事件.
+  * 若麦克风按钮已被按下，则触发停止录音事件.
+  * 若麦克风按钮未被按下，则触发开始录音事件.
+  */
+function play(mic_pressed)
+{
+    if(mic_pressed)
+    {
+        console.log('press');
+        iat_result.innerHTML = 'xxx';
+        /* 调用开始录音接口，通过function(volume)和function(err, obj)回调音量和识别结果 */
+        session.start('iat', ssb_param , function (volume)
+        {       
+            if(volume < 6 && volume > 0)
+                w.volume = 1;
+            if(volume < 0)
+                console.log("麦克风启动失败");
+            //console.log("结束录音");
+        }, function (err, result)
+        {
+            var iskw = false;
+            /* 若回调的err为空或错误码为0，则会话成功，可提取识别结果进行显示*/
+            if(err == null || err == undefined || err == 0)
+            {
+                if(result == '' || result == null)
+                    iat_result.innerHTML = "没有获取到识别结果";
+                else{
+                    if(result.slice(0, 2) == '搜索')
+                        iskw = true;
+                    alert(result);
+                    iat_result.innerHTML = result;
+                }
+            /* 若回调的err不为空且错误码不为0，则会话失败，可提取错误码 */    
+            } else
+            {
+                iat_result.innerHTML = 'error code : ' + err + ", error description : " + result;
+            }
+            if(!iskw){
+                uploadAudio();
+            }
+        });
+    }
+    else
+    {
+        console.log('unpress');
+        //停止麦克风录音，仍会返回已传录音的识别结果.
+        session.stop();
+    }
+}
+</script>
+
+</body>
+</html>
